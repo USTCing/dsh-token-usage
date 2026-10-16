@@ -91,7 +91,6 @@ function buildDemo() {
   let seed = 20261016;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
 
-  const start = new Date('2026-07-01T00:00:00Z');
   const DAYS = 60;
   const MODELS = [
     { name: 'deepseek-flash',   w: 0.72 },
@@ -101,6 +100,11 @@ function buildDemo() {
   const byModel = Object.create(null);
   const byProviderClass = Object.create(null);
   const perSession = [];
+
+  // 结束于「今天」（北京时间），让示例图看起来像一份当下的报表
+  const nowBj = new Date(Date.now() + 8 * 3600 * 1000);
+  const todayUtc = Date.UTC(nowBj.getUTCFullYear(), nowBj.getUTCMonth(), nowBj.getUTCDate());
+  const start = new Date(todayUtc - (DAYS - 1) * 86400000);
 
   for (let i = 0; i < DAYS; i++) {
     const dt = new Date(start.getTime() + i * 86400000);

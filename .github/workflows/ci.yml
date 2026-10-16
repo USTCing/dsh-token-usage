@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: 隐私自检 + 功能验证
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 语法检查
+        run: |
+          node --check dsh-pricing.cjs
+          node --check dsh-usage-collect.cjs
+          node --check dsh-usage-report.cjs
+          node --check check-no-leaks.cjs
+          echo "✓ 全部脚本语法正确"
+
+      # 最关键的一步：确保没有人把真实用量数据提交进仓库
+      - name: 隐私自检（阻止真实数据/凭据进入仓库）
+        run: node check-no-leaks.cjs
+
+      - name: 计价引擎自测
+        run: |
+          node -e '
+          const P = require("./dsh-pricing.cjs");
+          const peak = Date.parse("2026-10-16T10:00:00+08:00"); // 周五高峰
+          const off  = Date.parse("2026-10-16T20:00:00+08:00"); // 周五晚空闲
+
+          const cases = [
+            ["flash 未命中输入 高峰", P.costOf(peak, "deepseek-flash", 1e6, 0, 0), 2],
+            ["flash 缓存命中 空闲",   P.costOf(off,  "deepseek-flash", 0, 1e6, 0), 0.02],
+            ["flash 输出      高峰", P.costOf(peak, "deepseek-flash", 0, 0, 1e6), 8],
+            ["pro   未命中输入 高峰", P.costOf(peak, "deepseek-v4-pro", 1e6, 0, 0), 9],
+            ["pro   输出      空闲", P.costOf(off,  "deepseek-v4-pro", 0, 0, 1e6), 13.5],
+          ];
+          let fail = 0;
+          for (const [name, got, exp] of cases) {
+            const ok = Math.abs(got - exp) < 1e-9;
+            if (!ok) fail++;
+            console.log((ok ? "PASS" : "FAIL") + "  " + name + "  got=" + got + " exp=" + exp);
+          }
+
+          // 峰谷边界
+          const bounds = [
+            ["周五 08:59 空闲", "2026-10-16T08:59:59", false],
+            ["周五 09:00 高峰", "2026-10-16T09:00:00", true],
+            ["周五 12:00 空闲(午休)", "2026-10-16T12:00:00", false],
+            ["周五 14:00 高峰", "2026-10-16T14:00:00", true],
+            ["周五 18:00 空闲", "2026-10-16T18:00:00", false],
+            ["周六 10:00 空闲", "2026-10-17T10:00:00", false],
+            ["国庆 10:00 空闲", "2026-10-01T10:00:00", false],
+            ["调休上班 9/20 高峰", "2026-09-20T10:00:00", true],
+          ];
+          for (const [name, iso, exp] of bounds) {
+            const got = P.isPeak(Date.parse(iso + "+08:00"));
+            const ok = got === exp;
+            if (!ok) fail++;
+            console.log((ok ? "PASS" : "FAIL") + "  " + name + "  got=" + got);
+          }
+          if (fail) { console.error("\n" + fail + " 项失败"); process.exit(1); }
+          console.log("\n✓ 计价引擎全部通过");
+          '
+
+      - name: 端到端（--demo 采集 → 生成报表）
+        run: |
+          node dsh-usage-collect.cjs --demo /tmp/demo.json
+          node dsh-usage-report.cjs /tmp/demo.json /tmp/demo-report.html
+          test -s /tmp/demo-report.html
+          echo "✓ 报表生成成功"
+
+      - name: 校验产物不含个人信息
+        run: |
+          echo "--- 检查生成的 HTML ---"
+          for pat in 'jia' '贾顿' 'C:\\Users' 'session-[0-9a-f]\{8\}-'; do
+            if grep -qE "$pat" /tmp/demo-report.html; then
+              echo "✗ 报表中发现: $pat"
+              exit 1
+            fi
+          done
+          echo "✓ 报表不含个人信息"

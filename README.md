@@ -1,5 +1,7 @@
 # DSH Token 用量统计
 
+[![CI](https://github.com/USTCing/dsh-token-usage/actions/workflows/ci.yml/badge.svg)](https://github.com/USTCing/dsh-token-usage/actions/workflows/ci.yml)
+
 统计 **DeepSeek Harness** 的每日 token 用量，并按 [DeepSeek 官方价目表](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)（含**峰谷定价**）折算金额，输出一份可双击打开的单文件 HTML 报表。
 
 ![报表截图](docs/screenshot.png)
@@ -146,6 +148,10 @@ node check-no-leaks.cjs
 
 会扫描仓库内文件，检查本机路径、用户名、会话 UUID、疑似密钥等。退出码非 0 表示有问题。
 
+这个检查也会在 **CI 中自动运行**（见 [`.github/workflows/ci.yml`](.github/workflows/ci.yml)）：
+每次 push / PR 都会执行，一旦有人（包括未来的你）误提交真实用量数据或凭据，CI 会直接失败。
+CI 还会跑语法检查、计价引擎自测（含峰谷边界用例）和 `--demo` 端到端，并校验生成的报表不含个人信息。
+
 ---
 
 ## 文件说明
@@ -159,6 +165,7 @@ node check-no-leaks.cjs
 | `examples/demo-report.html` | 示例报表（合成数据） |
 | `docs/screenshot.png` | README 展示图（示例数据的截图） |
 | `docs/screenshot-full.png` | 报表整页截图 |
+| `.github/workflows/ci.yml` | CI：语法检查 + 隐私自检 + 计价自测 + 端到端 |
 
 ---
 
