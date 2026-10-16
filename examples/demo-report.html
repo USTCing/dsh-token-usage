@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DSH Token 用量报表（示例数据）</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<style>
+  :root { --bg:#0f1116; --card:#181b22; --line:#272b34; --fg:#e6e8ee; --dim:#8b93a7; --acc:#4f8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif; padding:24px; }
+  h1 { font-size:20px; margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:13px; margin-bottom:20px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  .card .k { color:var(--dim); font-size:12px; margin-bottom:6px; }
+  .card .v { font-size:22px; font-weight:600; letter-spacing:-.5px; }
+  .card .n { color:var(--dim); font-size:11px; margin-top:4px; }
+  .card.hl { border-color:#3a5a9a; background:linear-gradient(180deg,#1b2333,#181b22); }
+  .card.hl .v { color:#8ab4ff; }
+  .panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:16px; margin-bottom:16px; }
+  .panel h2 { font-size:14px; margin:0 0 2px; font-weight:600; }
+  .panel .hint { color:var(--dim); font-size:12px; margin-bottom:12px; }
+  .chart { width:100%; }
+  #main { height:360px; } #out { height:240px; } #heat { height:180px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+  button { background:#202531; color:var(--fg); border:1px solid var(--line);
+           border-radius:7px; padding:6px 13px; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.on { background:var(--acc); border-color:var(--acc); color:#fff; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { padding:7px 10px; text-align:right; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th:first-child,td:first-child { text-align:left; }
+  th { color:var(--dim); font-weight:500; cursor:pointer; user-select:none; }
+  th:hover { color:var(--fg); }
+  tbody tr:hover { background:#1e222b; }
+  .bar { height:8px; background:var(--acc); border-radius:2px; display:inline-block; vertical-align:middle; }
+  .note { color:var(--dim); font-size:12px; margin-top:10px; }
+  .demo-banner { background:#3a2f14; border:1px solid #7a6420; color:#ffd479;
+                 border-radius:10px; padding:12px 16px; margin:0 0 16px; font-size:13px; line-height:1.6; }
+  .demo-banner code { background:#00000040; padding:2px 6px; border-radius:4px; }
+  .legend { display:flex; gap:16px; font-size:12px; color:var(--dim); margin-bottom:8px; flex-wrap:wrap; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:middle; }
+  select { background:#202531; color:var(--fg); border:1px solid var(--line); border-radius:7px; padding:6px 10px; }
+</style>
+</head>
+<body>
+  <h1>DSH Token 用量报表</h1>
+  <div class="demo-banner">⚠ 这是<b>示例报表</b>：数据为程序合成的演示数据，<b>不含任何真实用量</b>。<br>
+    想生成你自己的报表：<code>node dsh-usage-collect.cjs &amp;&amp; node dsh-usage-report.cjs</code></div>
+  <div class="sub">数据源 ~/.dsh（示例数据 · 非真实用量）　·　生成于 2026/10/16 20:35:23　·　2026-07-01 → 2026-08-29（60 天）</div>
+
+  <div class="cards">
+    <div class="card hl"><div class="k">总金额（官方价折算）</div><div class="v">¥42.91</div><div class="n">官方 ¥17.16 · USTC ¥25.74</div></div>
+    <div class="card"><div class="k">总 Token</div><div class="v">2.93 亿</div><div class="n">293,352,307</div></div>
+    <div class="card"><div class="k">日均</div><div class="v">488.92 万</div><div class="n">¥0.72 / 天</div></div>
+    <div class="card"><div class="k">峰值日</div><div class="v">2109.33 万</div><div class="n">2026-08-20 · ¥2.98</div></div>
+    <div class="card"><div class="k">请求数</div><div class="v">5,621</div><div class="n">≈ 94/天</div></div>
+    <div class="card"><div class="k">缓存命中率</div><div class="v">94.2%</div><div class="n">平均 0.15 元/百万</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>费用概览</h2>
+    <div class="hint">按 DeepSeek 官方价目表 + 峰谷定价计算；可切换统计范围</div>
+    <div class="toolbar">
+      <button data-scope="all" class="on">全部（含 USTC 折算）</button>
+      <button data-scope="official">仅 DeepSeek 官方</button>
+      <button data-scope="ustc">仅 USTC</button>
+    </div>
+    <div class="cards" id="costCards"></div>
+    <div class="chart" id="cost" style="height:300px"></div>
+    <div class="legend">
+      <span><span class="dot" style="background:#4f8cff"></span>官方</span>
+      <span><span class="dot" style="background:#a06bff"></span>USTC</span>
+      <span><span class="dot" style="background:#ffb020"></span>高峰时段费用</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>每日用量</h2>
+    <div class="hint">堆叠展示构成；缓存读通常占绝大多数，可切换口径查看</div>
+    <div class="toolbar">
+      <button data-metric="total" class="on">总量</button>
+      <button data-metric="cost">金额</button>
+      <button data-metric="out">输出量</button>
+      <button data-metric="req">请求数</button>
+      <span style="flex:1"></span>
+      <button id="tgType">切换 柱状 / 折线</button>
+      <button id="tgLog">对数轴</button>
+    </div>
+    <div class="chart" id="main"></div>
+  </div>
+
+  <div class="panel">
+    <h2>输出 Token（真实产出）</h2>
+    <div class="hint">与上图共用 x 轴。单独成图以避免被缓存量级淹没</div>
+    <div class="chart" id="out"></div>
+  </div>
+
+  <div class="panel">
+    <h2>活跃热力图</h2>
+    <div class="hint">按周排布，颜色深浅 = 当日总量</div>
+    <div class="chart" id="heat"></div>
+  </div>
+
+  <div class="panel">
+    <h2>明细</h2>
+    <div class="hint">点击表头排序</div>
+    <table id="tbl">
+      <thead><tr>
+        <th data-s="day">日期</th><th data-s="req">请求数</th>
+        <th data-s="total">总 Token</th><th data-s="cost">金额</th>
+        <th data-s="cache">缓存读</th>
+        <th data-s="uncached">未缓存输入</th><th data-s="out">输出</th>
+        <th data-s="cache">命中率</th><th>占比</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>按网关</h2>
+    <div class="hint">DeepSeek 官方端点 vs USTC 网关（金额均为按官方价折算）</div>
+    <table id="ptbl"><thead><tr><th>网关</th><th>请求数</th><th>总 Token</th><th>金额</th><th>金额占比</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="panel">
+    <h2>按模型</h2>
+    <table id="mtbl"><thead><tr><th>模型</th><th>请求数</th><th>总 Token</th><th>金额</th><th>金额占比</th><th>Token 占比</th></tr></thead><tbody></tbody></table>
+  </div>
+
+  <div class="panel">
+    <h2>计价规则</h2>
+    <table>
+      <thead><tr><th>项目</th><th>值</th></tr></thead>
+      <tbody>
+        <tr><td>价目来源</td><td style="text-align:left"><a href="https://api-docs.deepseek.com/zh-cn/quick_start/pricing/" style="color:#8ab4ff">DeepSeek 官方文档</a></td></tr>
+        <tr><td>高峰时段</td><td style="text-align:left">北京时间 周一至周五（不含法定节假日）09:00-12:00、14:00-18:00</td></tr>
+        <tr><td>空闲时段</td><td style="text-align:left">其余时段（含周末、法定节假日全天），单价为高峰的 <b>50%</b></td></tr>
+        <tr><td>法定节假日</td><td style="text-align:left">中秋 9/25–9/27、国庆 10/1–10/7（2026 国务院安排）</td></tr>
+        <tr><td>调休上班</td><td style="text-align:left">9/20(周日)、10/10(周六) 按工作日计</td></tr>
+        <tr><td>flash 单价（空闲/高峰）</td><td style="text-align:left">缓存命中 0.02/0.04 · 未命中 1/2 · 输出 4/8（元/百万）</td></tr>
+        <tr><td>v4-pro 单价（空闲/高峰）</td><td style="text-align:left">缓存命中 0.15/0.30 · 未命中 4.5/9.0 · 输出 13.5/27.0（元/百万）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <b>口径说明</b><br>
+    · 金额 = ∑(token × 对应时段单价)。<b>未缓存输入</b>=cache miss，<b>缓存读</b>=cache hit。<br>
+    · 旧模型名 <code>deepseek-v4-flash*</code> 按官方说明<b>按 Flash 价</b>计费；非 DeepSeek 模型按 Flash 价折算并已标注。<br>
+    · <b>本金额是「按官方价折算」的参考值</b>：你 63% 的流量走 USTC 网关，实际不由 DeepSeek 计费。可用上方按钮切到「仅 DeepSeek 官方」看真实口径。<br>
+    · 官方保留调价权利，历史单价可能与本表不同，故该金额为估算。
+  </div>
+
+<script>
+const DATA = {"days":[{"day":"2026-07-01","req":111,"uncached":251465,"out":36113,"cache":6126565,"total":6414143,"subagentReq":0,"subagentTotal":0,"cost":0.699905205,"costOfficial":0.279962082,"costUstc":0.419943123,"costOther":0,"peakReq":39,"peakCost":0.36291381,"offReq":72,"offCost":0.33699139499999997},{"day":"2026-07-02","req":138,"uncached":283353,"out":51231,"cache":8026885,"total":8361469,"subagentReq":0,"subagentTotal":0,"cost":0.875899845,"costOfficial":0.350359938,"costUstc":0.525539907,"costOther":0,"peakReq":48,"peakCost":0.45417029,"offReq":90,"offCost":0.42172955500000003},{"day":"2026-07-03","req":71,"uncached":145081,"out":50773,"cache":2298592,"total":2494446,"subagentReq":0,"subagentTotal":0,"cost":0.532095534,"costOfficial":0.2128382136,"costUstc":0.3192573204,"costOther":0,"peakReq":25,"peakCost":0.27590138799999997,"offReq":46,"offCost":0.256194146},{"day":"2026-07-04","req":30,"uncached":115792,"out":21043,"cache":1181503,"total":1318338,"subagentReq":0,"subagentTotal":0,"cost":0.22359406,"costOfficial":0.08943762400000001,"costUstc":0.134156436,"costOther":0,"peakReq":0,"peakCost":0,"offReq":30,"offCost":0.22359406},{"day":"2026-07-05","req":28,"uncached":63726,"out":14234,"cache":1285837,"total":1363797,"subagentReq":0,"subagentTotal":0,"cost":0.14637874,"costOfficial":0.05855149600000001,"costUstc":0.087827244,"costOther":0,"peakReq":0,"peakCost":0,"offReq":28,"offCost":0.14637874},{"day":"2026-07-06","req":136,"uncached":451651,"out":78943,"cache":4646053,"total":5176647,"subagentReq":0,"subagentTotal":0,"cost":1.1614644809999999,"costOfficial":0.4645857924,"costUstc":0.6968786885999999,"costOther":0,"peakReq":48,"peakCost":0.6022408419999999,"offReq":88,"offCost":0.559223639},{"day":"2026-07-07","req":72,"uncached":112457,"out":36327,"cache":3451589,"total":3600373,"subagentReq":0,"subagentTotal":0,"cost":0.441175653,"costOfficial":0.1764702612,"costUstc":0.26470539179999997,"costOther":0,"peakReq":25,"peakCost":0.22875774599999998,"offReq":47,"offCost":0.21241790700000002},{"day":"2026-07-08","req":238,"uncached":698423,"out":135368,"cache":7164514,"total":7998305,"subagentReq":0,"subagentTotal":0,"cost":1.8673001280000001,"costOfficial":0.7469200512,"costUstc":1.1203800768,"costOther":0,"peakReq":83,"peakCost":0.968229696,"offReq":155,"offCost":0.899070432},{"day":"2026-07-09","req":121,"uncached":335369,"out":31208,"cache":7008492,"total":7375069,"subagentReq":0,"subagentTotal":0,"cost":0.810500634,"costOfficial":0.32420025360000004,"costUstc":0.4863003804,"costOther":0,"peakReq":42,"peakCost":0.42025958799999996,"offReq":79,"offCost":0.39024104600000004},{"day":"2026-07-10","req":165,"uncached":691039,"out":91430,"cache":9018667,"total":9801136,"subagentReq":0,"subagentTotal":0,"cost":1.670128659,"costOfficial":0.6680514636,"costUstc":1.0020771953999998,"costOther":0,"peakReq":58,"peakCost":0.8659926379999998,"offReq":107,"offCost":0.804136021},{"day":"2026-07-11","req":56,"uncached":94441,"out":23250,"cache":3102169,"total":3219860,"subagentReq":0,"subagentTotal":0,"cost":0.24948438,"costOfficial":0.09979375200000001,"costUstc":0.149690628,"costOther":0,"peakReq":0,"peakCost":0,"offReq":56,"offCost":0.24948438},{"day":"2026-07-12","req":73,"uncached":131963,"out":21088,"cache":3209637,"total":3362688,"subagentReq":0,"subagentTotal":0,"cost":0.28050774,"costOfficial":0.112203096,"costUstc":0.168304644,"costOther":0,"peakReq":0,"peakCost":0,"offReq":73,"offCost":0.28050774},{"day":"2026-07-13","req":86,"uncached":191151,"out":37467,"cache":3346161,"total":3574779,"subagentReq":0,"subagentTotal":0,"cost":0.550721997,"costOfficial":0.22028879880000002,"costUstc":0.3304331982,"costOther":0,"peakReq":30,"peakCost":0.285559554,"offReq":56,"offCost":0.265162443},{"day":"2026-07-14","req":121,"uncached":480385,"out":87700,"cache":3808007,"total":4376092,"subagentReq":0,"subagentTotal":0,"cost":1.2249159390000002,"costOfficial":0.4899663756000001,"costUstc":0.7349495634000001,"costOther":0,"peakReq":42,"peakCost":0.635141598,"offReq":79,"offCost":0.589774341},{"day":"2026-07-15","req":174,"uncached":436368,"out":53994,"cache":10123490,"total":10613852,"subagentReq":0,"subagentTotal":0,"cost":1.15399863,"costOfficial":0.461599452,"costUstc":0.692399178,"costOther":0,"peakReq":61,"peakCost":0.59836966,"offReq":113,"offCost":0.55562897},{"day":"2026-07-16","req":137,"uncached":342391,"out":80218,"cache":6984949,"total":7407558,"subagentReq":0,"subagentTotal":0,"cost":1.083998673,"costOfficial":0.43359946920000003,"costUstc":0.6503992037999999,"costOther":0,"peakReq":48,"peakCost":0.562073386,"offReq":89,"offCost":0.5219252870000001},{"day":"2026-07-17","req":70,"uncached":300010,"out":37840,"cache":3173099,"total":3510949,"subagentReq":0,"subagentTotal":0,"cost":0.695023173,"costOfficial":0.2780092692,"costUstc":0.41701390380000003,"costOther":0,"peakReq":25,"peakCost":0.360382386,"offReq":45,"offCost":0.334640787},{"day":"2026-07-18","req":41,"uncached":93850,"out":21057,"cache":2173941,"total":2288848,"subagentReq":0,"subagentTotal":0,"cost":0.22155682000000002,"costOfficial":0.08862272800000001,"costUstc":0.132934092,"costOther":0,"peakReq":0,"peakCost":0,"offReq":41,"offCost":0.22155682000000002},{"day":"2026-07-19","req":55,"uncached":242552,"out":29080,"cache":3000436,"total":3272068,"subagentReq":0,"subagentTotal":0,"cost":0.41888072,"costOfficial":0.167552288,"costUstc":0.251328432,"costOther":0,"peakReq":0,"peakCost":0,"offReq":55,"offCost":0.41888072},{"day":"2026-07-20","req":146,"uncached":490965,"out":68805,"cache":7669874,"total":8229644,"subagentReq":0,"subagentTotal":0,"cost":1.2414363480000001,"costOfficial":0.49657453920000005,"costUstc":0.7448618088000001,"costOther":0,"peakReq":51,"peakCost":0.6437077360000001,"offReq":95,"offCost":0.5977286119999999},{"day":"2026-07-21","req":51,"uncached":162941,"out":24514,"cache":3012192,"total":3199647,"subagentReq":0,"subagentTotal":0,"cost":0.433675134,"costOfficial":0.1734700536,"costUstc":0.2602050804,"costOther":0,"peakReq":18,"peakCost":0.22486858799999998,"offReq":33,"offCost":0.208806546},{"day":"2026-07-22","req":63,"uncached":176222,"out":17180,"cache":3486897,"total":3680299,"subagentReq":0,"subagentTotal":0,"cost":0.424817919,"costOfficial":0.1699271676,"costUstc":0.2548907514,"costOther":0,"peakReq":22,"peakCost":0.220275958,"offReq":41,"offCost":0.204541961},{"day":"2026-07-23","req":101,"uncached":180896,"out":30362,"cache":3398075,"total":3609333,"subagentReq":0,"subagentTotal":0,"cost":0.499912425,"costOfficial":0.19996497000000002,"costUstc":0.299947455,"costOther":0,"peakReq":35,"peakCost":0.25921384999999997,"offReq":66,"offCost":0.24069857500000003},{"day":"2026-07-24","req":85,"uncached":314491,"out":31984,"cache":2987825,"total":3334300,"subagentReq":0,"subagentTotal":0,"cost":0.677947725,"costOfficial":0.27117909,"costUstc":0.406768635,"costOther":0,"peakReq":30,"peakCost":0.35152845,"offReq":55,"offCost":0.326419275},{"day":"2026-07-25","req":14,"uncached":47650,"out":5607,"cache":466925,"total":520182,"subagentReq":0,"subagentTotal":0,"cost":0.0794165,"costOfficial":0.0317666,"costUstc":0.0476499,"costOther":0,"peakReq":0,"peakCost":0,"offReq":14,"offCost":0.0794165},{"day":"2026-07-26","req":18,"uncached":42326,"out":9156,"cache":963395,"total":1014877,"subagentReq":0,"subagentTotal":0,"cost":0.0982179,"costOfficial":0.03928716,"costUstc":0.058930739999999995,"costOther":0,"peakReq":0,"peakCost":0,"offReq":18,"offCost":0.0982179},{"day":"2026-07-27","req":42,"uncached":71455,"out":22499,"cache":2450554,"total":2544508,"subagentReq":0,"subagentTotal":0,"cost":0.28412380800000003,"costOfficial":0.11364952320000002,"costUstc":0.17047428480000001,"costOther":0,"peakReq":15,"peakCost":0.147323456,"offReq":27,"offCost":0.13680035200000001},{"day":"2026-07-28","req":63,"uncached":196464,"out":20975,"cache":3192531,"total":3409970,"subagentReq":0,"subagentTotal":0,"cost":0.464689737,"costOfficial":0.1858758948,"costUstc":0.2788138422,"costOther":0,"peakReq":22,"peakCost":0.24095023399999999,"offReq":41,"offCost":0.223739503},{"day":"2026-07-29","req":24,"uncached":45337,"out":12258,"cache":1412073,"total":1469668,"subagentReq":0,"subagentTotal":0,"cost":0.16552412100000002,"costOfficial":0.06620964840000002,"costUstc":0.09931447260000001,"costOther":0,"peakReq":8,"peakCost":0.085827322,"offReq":16,"offCost":0.07969679900000001},{"day":"2026-07-30","req":29,"uncached":102463,"out":11733,"cache":1591041,"total":1705237,"subagentReq":0,"subagentTotal":0,"cost":0.244641357,"costOfficial":0.0978565428,"costUstc":0.1467848142,"costOther":0,"peakReq":10,"peakCost":0.126851074,"offReq":19,"offCost":0.117790283},{"day":"2026-07-31","req":56,"uncached":164352,"out":19901,"cache":2814172,"total":2998425,"subagentReq":0,"subagentTotal":0,"cost":0.40532324399999997,"costOfficial":0.1621292976,"costUstc":0.24319394639999997,"costOther":0,"peakReq":20,"peakCost":0.21016760799999998,"offReq":36,"offCost":0.195155636},{"day":"2026-08-01","req":11,"uncached":25228,"out":6014,"cache":570778,"total":602020,"subagentReq":0,"subagentTotal":0,"cost":0.06069956,"costOfficial":0.024279824000000002,"costUstc":0.036419736,"costOther":0,"peakReq":0,"peakCost":0,"offReq":11,"offCost":0.06069956},{"day":"2026-08-02","req":21,"uncached":67250,"out":10473,"cache":704701,"total":782424,"subagentReq":0,"subagentTotal":0,"cost":0.12323602,"costOfficial":0.049294408000000005,"costUstc":0.073941612,"costOther":0,"peakReq":0,"peakCost":0,"offReq":21,"offCost":0.12323602},{"day":"2026-08-03","req":63,"uncached":246126,"out":40680,"cache":2767451,"total":3054257,"subagentReq":0,"subagentTotal":0,"cost":0.626663277,"costOfficial":0.25066531080000004,"costUstc":0.3759979662,"costOther":0,"peakReq":22,"peakCost":0.324936514,"offReq":41,"offCost":0.301726763},{"day":"2026-08-04","req":36,"uncached":91579,"out":13989,"cache":1897644,"total":2003212,"subagentReq":0,"subagentTotal":0,"cost":0.250408638,"costOfficial":0.10016345520000002,"costUstc":0.15024518280000002,"costOther":0,"peakReq":13,"peakCost":0.129841516,"offReq":23,"offCost":0.120567122},{"day":"2026-08-05","req":77,"uncached":224650,"out":19942,"cache":3125816,"total":3370408,"subagentReq":0,"subagentTotal":0,"cost":0.495361332,"costOfficial":0.1981445328,"costUstc":0.2972167992,"costOther":0,"peakReq":27,"peakCost":0.256854024,"offReq":50,"offCost":0.238507308},{"day":"2026-08-06","req":39,"uncached":74009,"out":19363,"cache":1611793,"total":1705165,"subagentReq":0,"subagentTotal":0,"cost":0.24799076099999998,"costOfficial":0.09919630439999999,"costUstc":0.14879445659999999,"costOther":0,"peakReq":14,"peakCost":0.12858780199999997,"offReq":25,"offCost":0.119402959},{"day":"2026-08-07","req":103,"uncached":159645,"out":30943,"cache":5130407,"total":5320995,"subagentReq":0,"subagentTotal":0,"cost":0.521133939,"costOfficial":0.20845357560000002,"costUstc":0.3126803634,"costOther":0,"peakReq":36,"peakCost":0.270217598,"offReq":67,"offCost":0.25091634100000004},{"day":"2026-08-08","req":32,"uncached":66806,"out":12951,"cache":995230,"total":1074987,"subagentReq":0,"subagentTotal":0,"cost":0.1385146,"costOfficial":0.05540584,"costUstc":0.08310875999999999,"costOther":0,"peakReq":0,"peakCost":0,"offReq":32,"offCost":0.1385146},{"day":"2026-08-09","req":51,"uncached":113488,"out":31213,"cache":3002815,"total":3147516,"subagentReq":0,"subagentTotal":0,"cost":0.2983963,"costOfficial":0.11935852000000001,"costUstc":0.17903778,"costOther":0,"peakReq":0,"peakCost":0,"offReq":51,"offCost":0.2983963},{"day":"2026-08-10","req":68,"uncached":269721,"out":17583,"cache":2566292,"total":2853596,"subagentReq":0,"subagentTotal":0,"cost":0.528361434,"costOfficial":0.21134457360000003,"costUstc":0.3170168604,"costOther":0,"peakReq":24,"peakCost":0.27396518799999997,"offReq":44,"offCost":0.254396246},{"day":"2026-08-11","req":96,"uncached":221706,"out":53294,"cache":4079076,"total":4354076,"subagentReq":0,"subagentTotal":0,"cost":0.6972257519999999,"costOfficial":0.2788903008,"costUstc":0.41833545119999993,"costOther":0,"peakReq":34,"peakCost":0.36152446399999993,"offReq":62,"offCost":0.335701288},{"day":"2026-08-12","req":228,"uncached":542249,"out":74107,"cache":10938224,"total":11554580,"subagentReq":0,"subagentTotal":0,"cost":1.427545998,"costOfficial":0.5710183992000001,"costUstc":0.8565275988,"costOther":0,"peakReq":80,"peakCost":0.740209036,"offReq":148,"offCost":0.687336962},{"day":"2026-08-13","req":111,"uncached":441173,"out":55431,"cache":6185220,"total":6681824,"subagentReq":0,"subagentTotal":0,"cost":1.06191189,"costOfficial":0.424764756,"costUstc":0.637147134,"costOther":0,"peakReq":39,"peakCost":0.5506209799999999,"offReq":72,"offCost":0.51129091},{"day":"2026-08-14","req":117,"uncached":471576,"out":71703,"cache":6008843,"total":6552122,"subagentReq":0,"subagentTotal":0,"cost":1.186062561,"costOfficial":0.4744250244,"costUstc":0.7116375366,"costOther":0,"peakReq":41,"peakCost":0.6149954019999999,"offReq":76,"offCost":0.571067159},{"day":"2026-08-15","req":25,"uncached":46951,"out":13619,"cache":791855,"total":852425,"subagentReq":0,"subagentTotal":0,"cost":0.1172641,"costOfficial":0.04690564,"costUstc":0.07035846,"costOther":0,"peakReq":0,"peakCost":0,"offReq":25,"offCost":0.1172641},{"day":"2026-08-16","req":62,"uncached":278155,"out":29962,"cache":2987202,"total":3295319,"subagentReq":0,"subagentTotal":0,"cost":0.45774704,"costOfficial":0.183098816,"costUstc":0.274648224,"costOther":0,"peakReq":0,"peakCost":0,"offReq":62,"offCost":0.45774704},{"day":"2026-08-17","req":284,"uncached":785047,"out":127759,"cache":14350175,"total":15262981,"subagentReq":0,"subagentTotal":0,"cost":2.137166775,"costOfficial":0.85486671,"costUstc":1.2823000649999998,"costOther":0,"peakReq":99,"peakCost":1.10816055,"offReq":185,"offCost":1.029006225},{"day":"2026-08-18","req":185,"uncached":481606,"out":57114,"cache":9589139,"total":10127859,"subagentReq":0,"subagentTotal":0,"cost":1.217490453,"costOfficial":0.4869961812,"costUstc":0.7304942717999999,"costOther":0,"peakReq":65,"peakCost":0.6312913459999999,"offReq":120,"offCost":0.586199107},{"day":"2026-08-19","req":175,"uncached":457892,"out":114273,"cache":10360292,"total":10932457,"subagentReq":0,"subagentTotal":0,"cost":1.5149562839999997,"costOfficial":0.6059825135999999,"costUstc":0.9089737703999998,"costOther":0,"peakReq":61,"peakCost":0.7855328879999999,"offReq":114,"offCost":0.729423396},{"day":"2026-08-20","req":332,"uncached":1131601,"out":169328,"cache":19792386,"total":21093315,"subagentReq":0,"subagentTotal":0,"cost":2.976426972,"costOfficial":1.1905707888000001,"costUstc":1.7858561832,"costOther":0,"peakReq":116,"peakCost":1.5433325039999999,"offReq":216,"offCost":1.4330944680000002},{"day":"2026-08-21","req":180,"uncached":430625,"out":99590,"cache":8564212,"total":9094427,"subagentReq":0,"subagentTotal":0,"cost":1.350363474,"costOfficial":0.5401453896,"costUstc":0.8102180843999999,"costOther":0,"peakReq":63,"peakCost":0.700188468,"offReq":117,"offCost":0.650175006},{"day":"2026-08-22","req":34,"uncached":152467,"out":18157,"cache":1252639,"total":1423263,"subagentReq":0,"subagentTotal":0,"cost":0.25014778,"costOfficial":0.100059112,"costUstc":0.15008866799999998,"costOther":0,"peakReq":0,"peakCost":0,"offReq":34,"offCost":0.25014778},{"day":"2026-08-23","req":49,"uncached":196238,"out":25839,"cache":2515858,"total":2737935,"subagentReq":0,"subagentTotal":0,"cost":0.34991116,"costOfficial":0.139964464,"costUstc":0.209946696,"costOther":0,"peakReq":0,"peakCost":0,"offReq":49,"offCost":0.34991116},{"day":"2026-08-24","req":124,"uncached":517702,"out":47134,"cache":5690561,"total":6255397,"subagentReq":0,"subagentTotal":0,"cost":1.107066447,"costOfficial":0.44282657880000004,"costUstc":0.6642398682,"costOther":0,"peakReq":43,"peakCost":0.574034454,"offReq":81,"offCost":0.533031993},{"day":"2026-08-25","req":106,"uncached":424952,"out":33189,"cache":4666199,"total":5124340,"subagentReq":0,"subagentTotal":0,"cost":0.878893173,"costOfficial":0.3515572692,"costUstc":0.5273359038,"costOther":0,"peakReq":37,"peakCost":0.455722386,"offReq":69,"offCost":0.423170787},{"day":"2026-08-26","req":153,"uncached":685618,"out":82964,"cache":8075433,"total":8844015,"subagentReq":0,"subagentTotal":0,"cost":1.5916265909999998,"costOfficial":0.6366506364,"costUstc":0.9549759545999998,"costOther":0,"peakReq":54,"peakCost":0.8252878619999999,"offReq":99,"offCost":0.766338729},{"day":"2026-08-27","req":125,"uncached":329160,"out":40128,"cache":6474620,"total":6843908,"subagentReq":0,"subagentTotal":0,"cost":0.83587194,"costOfficial":0.334348776,"costUstc":0.501523164,"costOther":0,"peakReq":44,"peakCost":0.43341507999999995,"offReq":81,"offCost":0.40245686},{"day":"2026-08-28","req":97,"uncached":413110,"out":51698,"cache":5672888,"total":6137696,"subagentReq":0,"subagentTotal":0,"cost":0.9900356760000001,"costOfficial":0.39601427040000003,"costUstc":0.5940214056,"costOther":0,"peakReq":34,"peakCost":0.513351832,"offReq":63,"offCost":0.4766838440000001},{"day":"2026-08-29","req":22,"uncached":78109,"out":11450,"cache":933722,"total":1023281,"subagentReq":0,"subagentTotal":0,"cost":0.14258344,"costOfficial":0.057033376000000004,"costUstc":0.085550064,"costOther":0,"peakReq":0,"peakCost":0,"offReq":22,"offCost":0.14258344}],"byModel":{"deepseek-flash":{"total":211213661.04000002,"req":4044,"uncached":12154656.959999997,"cache":197191879.92,"out":1867124.16,"cost":30.893990829119993,"costOfficial":12.357596331648002,"costUstc":18.536394497471992,"costOther":0},"deepseek-v4-pro":{"total":29335230.7,"req":565,"uncached":1688146.7999999998,"cache":27387761.099999994,"out":259322.79999999987,"cost":4.2908320596,"costOfficial":1.71633282384,"costUstc":2.5744992357599994,"costOther":0},"deepseek-v4-flash":{"total":52803415.260000005,"req":1010,"uncached":3038664.2399999993,"cache":49297969.98,"out":466781.04,"cost":7.723497707279998,"costOfficial":3.0893990829120006,"costUstc":4.634098624367998,"costOther":0}},"byProviderClass":{"official":{"req":2244,"total":117340922.8,"cost":17.1633282384},"ustc":{"req":3377,"total":176011384.2,"cost":25.74499235759999}},"totals":{"req":5621,"uncached":16881468,"cache":273877611,"out":2593228,"total":293352307,"cost":42.908320596,"costOfficial":17.1633282384,"costUstc":25.74499235759999,"costOther":0,"peakReq":1751,"peakCost":20.352776752000004,"offReq":3870,"offCost":22.555543844000006},"pricing":{"currency":"CNY","source":"https://api-docs.deepseek.com/zh-cn/quick_start/pricing/","note":"按 DeepSeek 官方价目表 + 峰谷定价；旧模型名 deepseek-v4-flash* 按 Flash 价；非 DeepSeek 模型按 Flash 价折算","peakRule":"北京时间 周一至周五（不含法定节假日）09:00-12:00、14:00-18:00","holidays2026":["2026-09-25","2026-09-26","2026-09-27","2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05","2026-10-06","2026-10-07"],"makeupWorkdays":["2026-09-20","2026-10-10"],"table":{"deepseek-flash":{"cacheHit":{"off":0.02,"peak":0.04},"cacheMiss":{"off":1,"peak":2},"output":{"off":4,"peak":8}},"deepseek-v4-pro":{"cacheHit":{"off":0.15,"peak":0.3},"cacheMiss":{"off":4.5,"peak":9},"output":{"off":13.5,"peak":27}}}}};
+const fmt = n => n.toLocaleString('en-US');
+// 中文单位：万 / 亿
+const M = n => { const a = Math.abs(n); return a>=1e8?(n/1e8).toFixed(2)+' 亿':a>=1e4?(n/1e4).toFixed(2)+' 万':String(Math.round(n)); };
+const yuan = n => '¥' + (Math.abs(n)>=1000 ? Math.round(n).toLocaleString('en-US') : (n||0).toFixed(2));
+
+// 统计范围切换：all(默认) / official / ustc
+let scope = 'all';
+function scopeDays() {
+  return DATA.days.map(d => {
+    if (scope === 'official') {
+      const share = d.cost > 0 ? d.costOfficial / d.cost : 0;
+      return Object.assign({}, d, { cost: d.costOfficial, _tok: d.total * share });
+    }
+    if (scope === 'ustc') {
+      const share = d.cost > 0 ? d.costUstc / d.cost : 0;
+      return Object.assign({}, d, { cost: d.costUstc, _tok: d.total * share });
+    }
+    return Object.assign({}, d, { cost: d.cost, _tok: d.total });
+  });
+}
+function scopeTotals() {
+  const ds = scopeDays();
+  return ds.reduce((a, d) => { a.cost += d.cost; a.peakCost += (scope==='all'?d.peakCost:0);
+    a.offCost += (scope==='all'?d.offCost:0); a.req += d.req; return a; },
+    { cost:0, peakCost:0, offCost:0, req:0 });
+}
+
+const lbl = DATA.days.map(d => d.day.slice(5));
+let metric = 'total', isLine = false, isLog = false;
+
+const themed = { textStyle:{ color:'#e6e8ee' },
+  grid:{ left:56, right:20, top:28, bottom:34 },
+  tooltip:{ trigger:'axis', backgroundColor:'#181b22', borderColor:'#272b34',
+            textStyle:{ color:'#e6e8ee', fontSize:12 },
+            formatter: ps => {
+              if (!ps || !ps.length) return '';
+              const d0 = DATA.days[ps[0].dataIndex];
+              let s = '<b>' + d0.day + '</b><br>' + fmt(d0.req) + ' 次请求';
+              ps.forEach(p => { if (p.value != null) s += '<br>' + p.marker + p.seriesName + '：' + fmt(p.value); });
+              return s;
+            } },
+  xAxis:{ type:'category', data:lbl, axisLine:{ lineStyle:{ color:'#272b34' } },
+          axisLabel:{ color:'#8b93a7' } },
+  yAxis:{ type:'value', axisLine:{ show:false }, splitLine:{ lineStyle:{ color:'#1e222b' } },
+          axisLabel:{ color:'#8b93a7', formatter: v => v >= 1e6 ? M(v) : fmt(v) } } };
+
+function series() {
+  if (metric === 'req') {
+    return [{ name:'请求数', type:isLine?'line':'bar', data:DATA.days.map(d=>d.req),
+              itemStyle:{ color:'#4f8cff' }, smooth:true, areaStyle:isLine?{opacity:.15}:null }];
+  }
+  if (metric === 'out') {
+    return [{ name:'输出', type:isLine?'line':'bar', stack:isLine?null:'s',
+              data:DATA.days.map(d=>d.out), itemStyle:{ color:'#37d399' },
+              smooth:true, areaStyle:isLine?{opacity:.15}:null }];
+  }
+  if (metric === 'cost') {
+    return [{ name:'金额', type:isLine?'line':'bar', data:DATA.days.map(d => +d.cost.toFixed(4)),
+              itemStyle:{ color:'#ffb020' }, smooth:true, areaStyle:isLine?{opacity:.15}:null }];
+  }
+  return [
+    { name:'未缓存输入', type:isLine?'line':'bar', stack:'s', data:DATA.days.map(d=>d.uncached), itemStyle:{ color:'#ffb020' } },
+    { name:'缓存读', type:isLine?'line':'bar', stack:'s', data:DATA.days.map(d=>d.cache), itemStyle:{ color:'#4f8cff' } },
+    { name:'输出', type:isLine?'line':'bar', stack:'s', data:DATA.days.map(d=>d.out), itemStyle:{ color:'#37d399' } }
+  ];
+}
+
+const cMain = echarts.init(document.getElementById('main'), null, { renderer:'canvas' });
+function drawMain() {
+  const s = series();
+  const showLegend = metric === 'total';
+  // 金额图用"元"轴标签；token 图用短中文单位，避免标签被截断
+  const yAxis = Object.assign({}, themed.yAxis, {
+    type: isLog ? 'log' : 'value',
+    axisLabel: { color:'#8b93a7', hideOverlap:true,
+      formatter: v => metric === 'cost' ? ('¥' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v))
+                     : AX(v) }
+  });
+  cMain.setOption(Object.assign({}, themed, {
+    color: s.map(x => x.itemStyle.color),
+    legend: showLegend ? { textStyle:{ color:'#8b93a7' }, top:0, right:0 } : { show:false },
+    yAxis: yAxis,
+    series: s
+  }), true);
+}
+drawMain();
+
+// ---- 费用图 + 卡片（受 scope 影响）----
+const cCost = echarts.init(document.getElementById('cost'), null, { renderer:'canvas' });
+function drawCost() {
+  const ds = scopeDays();
+  const st = scopeTotals();
+  const official = DATA.totals.costOfficial || 0;
+  const ustc = DATA.totals.costUstc || 0;
+  const other = DATA.totals.costOther || 0;
+  const shown = scope === 'official' ? official : scope === 'ustc' ? ustc : st.cost;
+  const tok = scope === 'all' ? DATA.totals.total
+            : (DATA.totals.total * (shown / (DATA.totals.cost || 1)));
+  const cards = [
+    ['金额合计', yuan(shown), scope === 'all' ? '官方+USTC+其它' : (scope === 'official' ? '仅 DeepSeek 官方' : '仅 USTC 网关')],
+    ['日均', yuan(shown / ds.length), '按 ' + ds.length + ' 天'],
+    ['平均单价', '¥' + (shown / (tok / 1e6)).toFixed(2), '元 / 百万 tokens'],
+    ['高峰费用', scope === 'all' ? yuan(st.peakCost) : '—', scope === 'all' ? ('占 ' + (st.peakCost / (st.cost || 1) * 100).toFixed(1) + '%') : '仅全部范围'],
+    ['空闲费用', scope === 'all' ? yuan(st.offCost) : '—', scope === 'all' ? ('占 ' + (st.offCost / (st.cost || 1) * 100).toFixed(1) + '%') : '仅全部范围']
+  ];
+  document.getElementById('costCards').innerHTML = cards.map((c, i) =>
+    '<div class="card' + (i === 0 ? ' hl' : '') + '"><div class="k">' + c[0] + '</div><div class="v">' +
+    c[1] + '</div><div class="n">' + c[2] + '</div></div>').join('');
+
+  cCost.setOption(Object.assign({}, themed, {
+    tooltip:{ trigger:'axis', backgroundColor:'#181b22', borderColor:'#272b34', textStyle:{color:'#e6e8ee'},
+      formatter: ps => {
+        if (!ps || !ps.length) return '';
+        const d0 = DATA.days[ps[0].dataIndex];
+        let s = '<b>' + d0.day + '</b><br>合计 ' + yuan(d0.cost) +
+                '<br>官方 ' + yuan(d0.costOfficial) + '<br>USTC ' + yuan(d0.costUstc) +
+                '<br>高峰 ' + yuan(d0.peakCost) + ' / 空闲 ' + yuan(d0.offCost) +
+                '<br>平均单价 ¥' + (d0.cost / (d0.total / 1e6)).toFixed(2) + '/百万';
+        return s;
+      } },
+    legend:{ textStyle:{ color:'#8b93a7' }, top:0, right:0 },
+    grid:{ left:64, right:20, top:28, bottom:34 },
+    xAxis: Object.assign({}, themed.xAxis),
+    yAxis: Object.assign({}, themed.yAxis, { axisLabel:{ color:'#8b93a7', formatter: v => '¥' + (v >= 1000 ? (v/1000).toFixed(1)+'k' : v.toFixed(0)) } }),
+    series:[
+      { name:'官方', type:'bar', stack:'c', data: ds.map(d => scope === 'ustc' ? 0 : +d.costOfficial.toFixed(4)), itemStyle:{ color:'#4f8cff' } },
+      { name:'USTC', type:'bar', stack:'c', data: ds.map(d => scope === 'official' ? 0 : +d.costUstc.toFixed(4)), itemStyle:{ color:'#a06bff' } },
+      { name:'高峰时段费用', type:'line', smooth:true, symbol:'none',
+        data: ds.map(d => scope === 'all' ? +d.peakCost.toFixed(4) : null),
+        itemStyle:{ color:'#ffb020' }, lineStyle:{ width:1.5, type:'dashed' } }
+    ]
+  }), true);
+}
+drawCost();
+
+// scope 按钮
+document.querySelectorAll('[data-scope]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-scope]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); scope = b.dataset.scope; drawCost();
+});
+
+// 轴标签专用的短单位（避免标签过长被截断）
+function AX(n) {
+  const a = Math.abs(n);
+  if (a >= 1e8) return (n / 1e8).toFixed(1) + '亿';
+  if (a >= 1e4) return (n / 1e4).toFixed(1) + '万';
+  return String(Math.round(n));
+}
+
+// ---- 输出量小图 ----
+const cOut = echarts.init(document.getElementById('out'), null, { renderer:'canvas' });
+cOut.setOption(Object.assign({}, themed, {
+  grid:{ left:64, right:24, top:16, bottom:34 },
+  tooltip:{ trigger:'axis', backgroundColor:'#181b22', borderColor:'#272b34', textStyle:{color:'#e6e8ee'},
+    formatter: ps => {
+      if (!ps || !ps.length) return '';
+      const d0 = DATA.days[ps[0].dataIndex];
+      return '<b>' + d0.day + '</b><br>输出 ' + fmt(d0.out) + ' tokens (' + M(d0.out) + ')';
+    } },
+  yAxis: Object.assign({}, themed.yAxis, {
+    axisLabel: { color:'#8b93a7', formatter: v => AX(v), hideOverlap:true } }),
+  series:[{ name:'输出', type:'line', smooth:true, data:DATA.days.map(d=>d.out),
+            itemStyle:{ color:'#37d399' }, areaStyle:{ opacity:.18 } }]
+}));
+
+// 热力图：列 = 自然周（周一为起点），行 = 星期几
+const DAY0 = new Date(DATA.days[0].day + 'T00:00:00');
+const mondayOf = dt => { const x = new Date(dt); const w = (x.getDay() + 6) % 7; x.setDate(x.getDate() - w); x.setHours(0,0,0,0); return x; };
+const week0 = mondayOf(DAY0);
+const weekOf = dt => Math.round((mondayOf(dt) - week0) / 86400000 / 7);
+const rowOf  = dt => (dt.getDay() + 6) % 7;          // 0=周一 … 6=周日
+const maxWk  = weekOf(new Date(DATA.days[DATA.days.length - 1].day + 'T00:00:00'));
+const heat = DATA.days.map(d => {
+  const dt = new Date(d.day + 'T00:00:00');
+  return [ weekOf(dt), rowOf(dt), d.total ];
+});
+const heatIndex = {};
+DATA.days.forEach(d => { const dt = new Date(d.day + 'T00:00:00'); heatIndex[weekOf(dt) + ':' + rowOf(dt)] = d; });
+const cHeat = echarts.init(document.getElementById('heat'), null, { renderer:'canvas' });
+cHeat.setOption({
+  tooltip:{ backgroundColor:'#181b22', borderColor:'#272b34', textStyle:{color:'#e6e8ee'},
+    formatter: p => {
+      const dd = heatIndex[p.value[0] + ':' + p.value[1]];
+      return dd ? dd.day + '<br>' + fmt(dd.total) + ' tokens<br>' + fmt(dd.req) + ' 次请求' : '无用量';
+    } },
+  grid:{ left:52, right:16, top:8, bottom:26 },
+  xAxis:{ type:'category', data:Array.from({length:maxWk+1},(_,i)=>'W'+(i+1)),
+          axisLabel:{ color:'#8b93a7' }, axisLine:{ lineStyle:{color:'#272b34'} },
+          splitLine:{ show:false }, splitArea:{show:false} },
+  yAxis:{ type:'category', data:['一','二','三','四','五','六','日'],
+          axisLabel:{ color:'#8b93a7' }, axisLine:{ lineStyle:{color:'#272b34'} } },
+  visualMap:{ min:0, max:Math.max(...DATA.days.map(d=>d.total)), show:false,
+              inRange:{ color:['#1b2130','#2b4a8a','#4f8cff','#8ab4ff'] } },
+  series:[{ type:'heatmap', data:heat,
+            itemStyle:{ borderColor:'#0f1116', borderWidth:2, borderRadius:3 },
+            label:{ show:false }, progressive:0 }]
+});
+
+// 交互
+document.querySelectorAll('[data-metric]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-metric]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); metric = b.dataset.metric; drawMain();
+});
+document.getElementById('tgType').onclick = e => { isLine = !isLine; e.target.classList.toggle('on', isLine); drawMain(); };
+document.getElementById('tgLog').onclick = e => { isLog = !isLog; e.target.classList.toggle('on', isLog); drawMain(); };
+
+// 表格
+let sortKey = 'day', sortAsc = true;
+function renderTable() {
+  const rows = DATA.days.slice().sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const c = typeof x === 'string' ? x.localeCompare(y) : x - y;
+    return sortAsc ? c : -c;
+  });
+  const max = Math.max(...DATA.days.map(d => d.total));
+  document.querySelector('#tbl tbody').innerHTML = rows.map(d => {
+    const hit = (d.cache + d.uncached) > 0 ? (d.cache / (d.cache + d.uncached) * 100) : 0;
+    const w = Math.max(2, d.total / max * 70);
+    const up = d.total > 0 ? (d.cost / (d.total / 1e6)) : 0;
+    return '<tr><td>' + d.day + '</td><td>' + fmt(d.req) + '</td><td>' + fmt(d.total) + '</td>' +
+      '<td title="平均 ¥' + up.toFixed(2) + '/百万">' + yuan(d.cost) + '</td><td>' +
+      fmt(d.cache) + '</td><td>' + fmt(d.uncached) + '</td><td>' + fmt(d.out) + '</td><td>' +
+      hit.toFixed(1) + '%</td><td><span class="bar" style="width:' + w + 'px"></span></td></tr>';
+  }).join('');
+}
+document.querySelectorAll('#tbl th').forEach(th => th.onclick = () => {
+  const k = th.dataset.s;
+  if (k === sortKey) sortAsc = !sortAsc; else { sortKey = k; sortAsc = k === 'day'; }
+  renderTable();
+});
+renderTable();
+
+const mEntries = Object.entries(DATA.byModel)
+  .map(([k, v]) => [k, (typeof v === 'number' ? { total: v, cost: 0, req: 0 } : v)])
+  .sort((a, b) => b[1].total - a[1].total);
+const mTotal = mEntries.reduce((a, b) => a + b[1].total, 0);
+const mCost = mEntries.reduce((a, b) => a + (b[1].cost || 0), 0);
+document.querySelector('#mtbl tbody').innerHTML = mEntries.map(([k, v]) =>
+  '<tr><td>' + k + '</td><td>' + fmt(v.req || 0) + '</td><td>' + fmt(v.total) + '</td>' +
+  '<td>' + yuan(v.cost || 0) + '</td><td>' + ((v.cost || 0) / (mCost || 1) * 100).toFixed(2) + '%</td>' +
+  '<td>' + (v.total / mTotal * 100).toFixed(2) + '%</td></tr>').join('');
+
+// 按网关
+const pc = DATA.byProviderClass || {};
+const pcName = { official: 'DeepSeek 官方', ustc: 'USTC 网关', other: '其它' };
+const pcTotal = Object.values(pc).reduce((a, b) => a + b.cost, 0);
+document.querySelector('#ptbl tbody').innerHTML = Object.entries(pc)
+  .sort((a, b) => b[1].cost - a[1].cost)
+  .map(([k, v]) => '<tr><td>' + (pcName[k] || k) + '</td><td>' + fmt(v.req) + '</td><td>' +
+    fmt(v.total) + '</td><td>' + yuan(v.cost) + '</td><td>' + (v.cost / (pcTotal || 1) * 100).toFixed(2) + '%</td></tr>').join('');
+
+window.addEventListener('resize', () => { cMain.resize(); cOut.resize(); cHeat.resize(); cCost.resize(); });
+</script>
+</body>
+</html>

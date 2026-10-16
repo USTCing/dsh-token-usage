@@ -1,0 +1,39 @@
+# ---- 真实用量产物：绝不要提交 ----
+# 这些文件含你的真实 token 用量与会话 UUID
+dsh-usage-daily.json
+*-usage.json
+DSH用量报表.html
+my-report.html
+*.report.html
+
+# 例外：示例报表是合成数据，允许提交
+!examples/demo-report.html
+
+# ---- Node ----
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-error.log*
+package-lock.json
+pnpm-lock.yaml
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 临时文件 ----
+*.tmp
+*.bak
+*.bak-*
+
+# ---- 云同步冲突副本（坚果云/OneDrive/Dropbox 等）----
+# 这类文件名常带用户名或主机名，绝不能进仓库
+*SFConflict*
+*conflict*
+*(冲突*
+*的冲突副本*
+*DESKTOP-*
+*.sync-conflict-*
